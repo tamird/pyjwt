@@ -5,6 +5,8 @@ API Reference
 
 .. autofunction:: encode(payload, key, algorithm="HS256", headers=None, json_encoder=None) -> str
 
+.. autofunction:: decode_complete(jwt, key="", algorithms=None, options=None, verify=None, detached_payload=None, audience=None, issuer=None, subject=None, leeway=0) -> dict[str, typing.Any]
+
 .. autofunction:: decode(jwt, key="", algorithms=None, options=None, audience=None, issuer=None, leeway=0) -> dict[str, typing.Any]
 
 .. autoclass:: PyJWT
@@ -25,6 +27,10 @@ API Reference
 
         The :py:class:`Algorithm` class associated with the key.
 
+.. autoclass:: PyJWKSet
+    :class-doc-from: init
+    :members:
+
 .. autoclass:: PyJWKClient
     :class-doc-from: init
     :members:
@@ -39,7 +45,19 @@ Algorithms
 ----------
 
 .. automodule:: jwt.algorithms
-    :members: Algorithm, AllowedPrivateKeys, AllowedPublicKeys
+    :members: Algorithm
+
+.. currentmodule:: jwt.algorithms
+
+.. py:data:: AllowedPrivateKeys
+
+    Type alias for private key objects accepted by asymmetric algorithms.
+
+.. py:data:: AllowedPublicKeys
+
+    Type alias for public key objects accepted by asymmetric algorithms.
+
+.. currentmodule:: jwt
 
 
 Types

@@ -33,13 +33,6 @@ if has_crypto:
 
 
 class TestAlgorithms:
-    def test_check_crypto_key_type_should_fail_when_not_using_crypto(self):
-        """If has_crypto is False, or if _crypto_key_types is None, then this method should throw."""
-
-        algo = NoneAlgorithm()
-        with pytest.raises(ValueError):
-            algo.check_crypto_key_type("key")  # type: ignore[arg-type]
-
     def test_none_algorithm_should_throw_exception_if_key_is_not_none(self):
         algo = NoneAlgorithm()
 
@@ -1162,6 +1155,18 @@ class TestOKPAlgorithms:
 
         # Check that the exception message is correct
         assert "Could not parse the provided public key." in str(excinfo.value)
+
+    @crypto_required
+    def test_rsa_prepare_key_rejects_non_rsa_pem(self):
+        algo = RSAAlgorithm(RSAAlgorithm.SHA256)
+
+        with open(key_path("testkey_ec.pub")) as pem_key:
+            invalid_rsa_key = pem_key.read()
+
+        with pytest.raises(InvalidKeyError) as excinfo:
+            algo.prepare_key(invalid_rsa_key)
+
+        assert "Invalid Key type for RSAAlgorithm" in str(excinfo.value)
 
 
 @crypto_required

@@ -223,7 +223,7 @@ class PyJWS:
         else:
             merged_options = {**self.options, **options}
 
-        verify_signature = merged_options["verify_signature"]
+        verify_signature = merged_options.get("verify_signature", True)
 
         if verify_signature and not algorithms and not isinstance(key, PyJWK):
             raise DecodeError(

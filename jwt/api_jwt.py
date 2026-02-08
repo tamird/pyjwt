@@ -23,26 +23,12 @@ from .exceptions import (
 from .warnings import RemovedInPyjwt3Warning
 
 if TYPE_CHECKING or bool(os.getenv("SPHINX_BUILD", "")):
-    import sys
-
-    if sys.version_info >= (3, 10):
-        from typing import TypeAlias
-    else:
-        # Python 3.9 and lower
-        from typing_extensions import TypeAlias
-
-    from .algorithms import has_crypto
+    from .algorithms import AllowedPrivateKeys, AllowedPublicKeys
     from .api_jwk import PyJWK
     from .types import FullOptions, Options, SigOptions
 
-    if has_crypto:
-        from .algorithms import AllowedPrivateKeys, AllowedPublicKeys
-
-        AllowedPrivateKeyTypes: TypeAlias = Union[AllowedPrivateKeys, PyJWK, str, bytes]
-        AllowedPublicKeyTypes: TypeAlias = Union[AllowedPublicKeys, PyJWK, str, bytes]
-    else:
-        AllowedPrivateKeyTypes: TypeAlias = Union[PyJWK, str, bytes]  # type: ignore
-        AllowedPublicKeyTypes: TypeAlias = Union[PyJWK, str, bytes]  # type: ignore
+    AllowedPrivateKeyTypes = Union[AllowedPrivateKeys, PyJWK, str, bytes]
+    AllowedPublicKeyTypes = Union[AllowedPublicKeys, PyJWK, str, bytes]
 
 
 class PyJWT:
@@ -111,7 +97,7 @@ class PyJWT:
             * for **asymmetric algorithms**: PEM-formatted private key, a multiline string
             * for **symmetric algorithms**: plain string, sufficiently long for security
 
-        :type key: str or bytes or PyJWK or :py:class:`jwt.algorithms.AllowedPrivateKeys`
+        :type key: str or bytes or PyJWK or :py:data:`jwt.algorithms.AllowedPrivateKeys`
         :param algorithm: algorithm to sign the token with, e.g. ``"ES256"``.
             If ``headers`` includes ``alg``, it will be preferred to this parameter.
             If ``key`` is a :class:`PyJWK` object, by default the key algorithm will be used.
@@ -203,7 +189,7 @@ class PyJWT:
         :param jwt: the token to be decoded
         :type jwt: str or bytes
         :param key: the key suitable for the allowed algorithm
-        :type key: str or bytes or PyJWK or :py:class:`jwt.algorithms.AllowedPublicKeys`
+        :type key: str or bytes or PyJWK or :py:data:`jwt.algorithms.AllowedPublicKeys`
 
         :param algorithms: allowed algorithms, e.g. ``["ES256"]``
 
@@ -327,7 +313,7 @@ class PyJWT:
         :param jwt: the token to be decoded
         :type jwt: str or bytes
         :param key: the key suitable for the allowed algorithm
-        :type key: str or bytes or PyJWK or :py:class:`jwt.algorithms.AllowedPublicKeys`
+        :type key: str or bytes or PyJWK or :py:data:`jwt.algorithms.AllowedPublicKeys`
 
         :param algorithms: allowed algorithms, e.g. ``["ES256"]``
             If ``key`` is a :class:`PyJWK` object, allowed algorithms will default to the key algorithm.

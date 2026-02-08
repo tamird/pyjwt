@@ -47,6 +47,7 @@ dev = [
     "coverage[toml]==7.10.7",
     "cryptography>=3.4.0",
     "pre-commit",
+    "pyright",
     "pytest>=8.4.2,<9.0.0",
     "sphinx",
     "sphinx-rtd-theme",
@@ -91,11 +92,14 @@ source = [
 ]
 
 [tool.mypy]
-ignore_missing_imports = true
 packages = "jwt"
 strict = true
 warn_return_any = true
 warn_unused_ignores = true
+
+[tool.pyright]
+include = ["jwt"]
+typeCheckingMode = "standard"
 
 [tool.pytest.ini_options]
 addopts = "-ra"

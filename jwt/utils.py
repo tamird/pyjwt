@@ -3,15 +3,6 @@ import binascii
 import re
 from typing import Optional, Union
 
-try:
-    from cryptography.hazmat.primitives.asymmetric.ec import EllipticCurve
-    from cryptography.hazmat.primitives.asymmetric.utils import (
-        decode_dss_signature,
-        encode_dss_signature,
-    )
-except ModuleNotFoundError:
-    pass
-
 
 def force_bytes(value: Union[bytes, str]) -> bytes:
     if isinstance(value, str):
@@ -69,28 +60,6 @@ def bytes_from_int(val: int, *, bit_length: Optional[int] = None) -> bytes:
     byte_length = (bit_length + 7) // 8
 
     return val.to_bytes(byte_length, "big", signed=False)
-
-
-def der_to_raw_signature(der_sig: bytes, curve: "EllipticCurve") -> bytes:
-    num_bits = curve.key_size
-    num_bytes = (num_bits + 7) // 8
-
-    r, s = decode_dss_signature(der_sig)
-
-    return number_to_bytes(r, num_bytes) + number_to_bytes(s, num_bytes)
-
-
-def raw_to_der_signature(raw_sig: bytes, curve: "EllipticCurve") -> bytes:
-    num_bits = curve.key_size
-    num_bytes = (num_bits + 7) // 8
-
-    if len(raw_sig) != 2 * num_bytes:
-        raise ValueError("Invalid signature")
-
-    r = bytes_to_number(raw_sig[:num_bytes])
-    s = bytes_to_number(raw_sig[num_bytes:])
-
-    return bytes(encode_dss_signature(r, s))
 
 
 # Based on https://github.com/hynek/pem/blob/7ad94db26b0bc21d10953f5dbad3acfdfacf57aa/src/pem/_core.py#L224-L252

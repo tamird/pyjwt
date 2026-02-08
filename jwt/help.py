@@ -1,11 +1,12 @@
 import json
+
 import platform
 import sys
 
 from . import __version__ as pyjwt_version
 
 try:
-    import cryptography
+    import cryptography  # type: ignore[import-not-found,unused-ignore]
 
     cryptography_version = cryptography.__version__
 except ModuleNotFoundError:

@@ -9,10 +9,11 @@ from typing import (
     TYPE_CHECKING,
     Any,
     ClassVar,
+    Generic,
     Literal,
     NoReturn,
+    TypeVar,
     Union,
-    cast,
     overload,
 )
 
@@ -21,21 +22,29 @@ from .types import HashlibHash, JWKDict
 from .utils import (
     base64url_decode,
     base64url_encode,
-    der_to_raw_signature,
+    bytes_to_number,
     force_bytes,
     from_base64url_uint,
     is_pem_format,
     is_ssh_key,
-    raw_to_der_signature,
+    number_to_bytes,
     to_base64url_uint,
 )
 
-try:
-    from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
-    from cryptography.hazmat.backends import default_backend
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.asymmetric import padding
-    from cryptography.hazmat.primitives.asymmetric.ec import (
+if TYPE_CHECKING or bool(os.getenv("SPHINX_BUILD", "")):
+    import sys
+
+    if sys.version_info >= (3, 10):
+        from typing import TypeAlias
+    else:
+        # Python 3.9 and lower
+        from typing_extensions import TypeAlias
+
+    from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm  # type: ignore[import-not-found,unused-ignore]
+    from cryptography.hazmat.backends import default_backend  # type: ignore[import-not-found,unused-ignore]
+    from cryptography.hazmat.primitives import hashes  # type: ignore[import-not-found,unused-ignore]
+    from cryptography.hazmat.primitives.asymmetric import padding  # type: ignore[import-not-found,unused-ignore]
+    from cryptography.hazmat.primitives.asymmetric.ec import (  # type: ignore[import-not-found,unused-ignore]
         ECDSA,
         SECP256K1,
         SECP256R1,
@@ -47,15 +56,15 @@ try:
         EllipticCurvePublicKey,
         EllipticCurvePublicNumbers,
     )
-    from cryptography.hazmat.primitives.asymmetric.ed448 import (
+    from cryptography.hazmat.primitives.asymmetric.ed448 import (  # type: ignore[import-not-found,unused-ignore]
         Ed448PrivateKey,
         Ed448PublicKey,
     )
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import (  # type: ignore[import-not-found,unused-ignore]
         Ed25519PrivateKey,
         Ed25519PublicKey,
     )
-    from cryptography.hazmat.primitives.asymmetric.rsa import (
+    from cryptography.hazmat.primitives.asymmetric.rsa import (  # type: ignore[import-not-found,unused-ignore]
         RSAPrivateKey,
         RSAPrivateNumbers,
         RSAPublicKey,
@@ -65,7 +74,15 @@ try:
         rsa_crt_iqmp,
         rsa_recover_prime_factors,
     )
-    from cryptography.hazmat.primitives.serialization import (
+    from cryptography.hazmat.primitives.asymmetric.utils import (  # type: ignore[import-not-found,unused-ignore]
+        decode_dss_signature,
+        encode_dss_signature,
+    )
+    from cryptography.hazmat.primitives.asymmetric.types import (  # type: ignore[import-not-found,unused-ignore]
+        PrivateKeyTypes,
+        PublicKeyTypes,
+    )
+    from cryptography.hazmat.primitives.serialization import (  # type: ignore[import-not-found,unused-ignore]
         Encoding,
         NoEncryption,
         PrivateFormat,
@@ -75,63 +92,67 @@ try:
         load_ssh_public_key,
     )
 
-    # pyjwt-964: we use these both for type checking below, as well as for validating the key passed in.
-    # in Py >= 3.10, we can replace this with the Union types below
-    ALLOWED_RSA_KEY_TYPES = (RSAPrivateKey, RSAPublicKey)
-    ALLOWED_EC_KEY_TYPES = (EllipticCurvePrivateKey, EllipticCurvePublicKey)
-    ALLOWED_OKP_KEY_TYPES = (
-        Ed25519PrivateKey,
-        Ed25519PublicKey,
-        Ed448PrivateKey,
-        Ed448PublicKey,
-    )
-    ALLOWED_KEY_TYPES = (
-        ALLOWED_RSA_KEY_TYPES + ALLOWED_EC_KEY_TYPES + ALLOWED_OKP_KEY_TYPES
-    )
-    ALLOWED_PRIVATE_KEY_TYPES = (
-        RSAPrivateKey,
+    AllowedRSAKeys: TypeAlias = Union[RSAPrivateKey, RSAPublicKey]
+    AllowedECKeys: TypeAlias = Union[EllipticCurvePrivateKey, EllipticCurvePublicKey]
+    AllowedOKPKeys: TypeAlias = Union[
+        Ed25519PrivateKey, Ed25519PublicKey, Ed448PrivateKey, Ed448PublicKey
+    ]
+    AllowedKeys: TypeAlias = Union[AllowedRSAKeys, AllowedECKeys, AllowedOKPKeys]
+    AllowedPrivateKeys: TypeAlias = Union[
+        RSAPrivateKey, EllipticCurvePrivateKey, Ed25519PrivateKey, Ed448PrivateKey
+    ]
+    AllowedPublicKeys: TypeAlias = Union[
+        RSAPublicKey, EllipticCurvePublicKey, Ed25519PublicKey, Ed448PublicKey
+    ]
+
+try:
+    from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm  # type: ignore[import-not-found,unused-ignore]
+    from cryptography.hazmat.backends import default_backend  # type: ignore[import-not-found,unused-ignore]
+    from cryptography.hazmat.primitives import hashes  # type: ignore[import-not-found,unused-ignore]
+    from cryptography.hazmat.primitives.asymmetric import padding  # type: ignore[import-not-found,unused-ignore]
+    from cryptography.hazmat.primitives.asymmetric.ec import (  # type: ignore[import-not-found,unused-ignore]
+        ECDSA,
+        SECP256K1,
+        SECP256R1,
+        SECP384R1,
+        SECP521R1,
+        EllipticCurve,
         EllipticCurvePrivateKey,
-        Ed25519PrivateKey,
-        Ed448PrivateKey,
-    )
-    ALLOWED_PUBLIC_KEY_TYPES = (
-        RSAPublicKey,
+        EllipticCurvePrivateNumbers,
         EllipticCurvePublicKey,
-        Ed25519PublicKey,
+        EllipticCurvePublicNumbers,
+    )
+    from cryptography.hazmat.primitives.asymmetric.ed448 import (  # type: ignore[import-not-found,unused-ignore]
+        Ed448PrivateKey,
         Ed448PublicKey,
     )
-
-    if TYPE_CHECKING or bool(os.getenv("SPHINX_BUILD", "")):
-        import sys
-
-        if sys.version_info >= (3, 10):
-            from typing import TypeAlias
-        else:
-            # Python 3.9 and lower
-            from typing_extensions import TypeAlias
-
-        from cryptography.hazmat.primitives.asymmetric.types import (
-            PrivateKeyTypes,
-            PublicKeyTypes,
-        )
-
-        # Type aliases for convenience in algorithms method signatures
-        AllowedRSAKeys: TypeAlias = Union[RSAPrivateKey, RSAPublicKey]
-        AllowedECKeys: TypeAlias = Union[
-            EllipticCurvePrivateKey, EllipticCurvePublicKey
-        ]
-        AllowedOKPKeys: TypeAlias = Union[
-            Ed25519PrivateKey, Ed25519PublicKey, Ed448PrivateKey, Ed448PublicKey
-        ]
-        AllowedKeys: TypeAlias = Union[AllowedRSAKeys, AllowedECKeys, AllowedOKPKeys]
-        #: Type alias for allowed ``cryptography`` private keys (requires ``cryptography`` to be installed)
-        AllowedPrivateKeys: TypeAlias = Union[
-            RSAPrivateKey, EllipticCurvePrivateKey, Ed25519PrivateKey, Ed448PrivateKey
-        ]
-        #: Type alias for allowed ``cryptography`` public keys (requires ``cryptography`` to be installed)
-        AllowedPublicKeys: TypeAlias = Union[
-            RSAPublicKey, EllipticCurvePublicKey, Ed25519PublicKey, Ed448PublicKey
-        ]
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import (  # type: ignore[import-not-found,unused-ignore]
+        Ed25519PrivateKey,
+        Ed25519PublicKey,
+    )
+    from cryptography.hazmat.primitives.asymmetric.rsa import (  # type: ignore[import-not-found,unused-ignore]
+        RSAPrivateKey,
+        RSAPrivateNumbers,
+        RSAPublicKey,
+        RSAPublicNumbers,
+        rsa_crt_dmp1,
+        rsa_crt_dmq1,
+        rsa_crt_iqmp,
+        rsa_recover_prime_factors,
+    )
+    from cryptography.hazmat.primitives.asymmetric.utils import (  # type: ignore[import-not-found,unused-ignore]
+        decode_dss_signature,
+        encode_dss_signature,
+    )
+    from cryptography.hazmat.primitives.serialization import (  # type: ignore[import-not-found,unused-ignore]
+        Encoding,
+        NoEncryption,
+        PrivateFormat,
+        PublicFormat,
+        load_pem_private_key,
+        load_pem_public_key,
+        load_ssh_public_key,
+    )
 
     has_crypto = True
 except ModuleNotFoundError:
@@ -193,9 +214,6 @@ class Algorithm(ABC):
     The interface for an algorithm used to sign and verify tokens.
     """
 
-    # pyjwt-964: Validate to ensure the key passed in was decoded to the correct cryptography key family
-    _crypto_key_types: tuple[type[AllowedKeys], ...] | None = None
-
     def compute_hash_digest(self, bytestr: bytes) -> bytes:
         """
         Compute a hash digest using the specified algorithm's hash algorithm.
@@ -217,29 +235,6 @@ class Algorithm(ABC):
             return bytes(digest.finalize())
         else:
             return bytes(hash_alg(bytestr).digest())
-
-    def check_crypto_key_type(self, key: PublicKeyTypes | PrivateKeyTypes) -> None:
-        """Check that the key belongs to the right cryptographic family.
-
-        Note that this method only works when ``cryptography`` is installed.
-
-        :param key: Potentially a cryptography key
-        :type key: :py:data:`PublicKeyTypes <cryptography.hazmat.primitives.asymmetric.types.PublicKeyTypes>` | :py:data:`PrivateKeyTypes <cryptography.hazmat.primitives.asymmetric.types.PrivateKeyTypes>`
-        :raises ValueError: if ``cryptography`` is not installed, or this method is called by a non-cryptography algorithm
-        :raises InvalidKeyError: if the key doesn't match the expected key classes
-        """
-        if not has_crypto or self._crypto_key_types is None:
-            raise ValueError(
-                "This method requires the cryptography library, and should only be used by cryptography-based algorithms."
-            )
-
-        if not isinstance(key, self._crypto_key_types):
-            valid_classes = (cls.__name__ for cls in self._crypto_key_types)
-            actual_class = key.__class__.__name__
-            self_class = self.__class__.__name__
-            raise InvalidKeyError(
-                f"Expected one of {valid_classes}, got: {actual_class}. Invalid Key type for {self_class}"
-            )
 
     @abstractmethod
     def prepare_key(self, key: Any) -> Any:
@@ -406,8 +401,85 @@ class HMACAlgorithm(Algorithm):
 
 
 if has_crypto:
+    CryptoKeyT = TypeVar("CryptoKeyT", bound="AllowedKeys")
 
-    class RSAAlgorithm(Algorithm):
+    def der_to_raw_signature(der_sig: bytes, curve: EllipticCurve) -> bytes:
+        num_bits = curve.key_size
+        num_bytes = (num_bits + 7) // 8
+
+        r, s = decode_dss_signature(der_sig)
+
+        return number_to_bytes(r, num_bytes) + number_to_bytes(s, num_bytes)
+
+    def raw_to_der_signature(raw_sig: bytes, curve: EllipticCurve) -> bytes:
+        num_bits = curve.key_size
+        num_bytes = (num_bits + 7) // 8
+
+        if len(raw_sig) != 2 * num_bytes:
+            raise ValueError("Invalid signature")
+
+        r = bytes_to_number(raw_sig[:num_bytes])
+        s = bytes_to_number(raw_sig[num_bytes:])
+
+        return bytes(encode_dss_signature(r, s))
+
+    class CryptoAlgorithm(Algorithm, Generic[CryptoKeyT]):
+        # pyjwt-964: ensure loaded key belongs to the expected key family.
+        _crypto_key_types: tuple[type[CryptoKeyT], ...] = ()
+
+        def check_crypto_key_type(
+            self, key: PublicKeyTypes | PrivateKeyTypes
+        ) -> CryptoKeyT:
+            """Check that the key belongs to the right cryptographic family.
+
+            :param key: Potentially a cryptography key
+            :type key: :py:data:`PublicKeyTypes <cryptography.hazmat.primitives.asymmetric.types.PublicKeyTypes>` | :py:data:`PrivateKeyTypes <cryptography.hazmat.primitives.asymmetric.types.PrivateKeyTypes>`
+            :raises ValueError: if this cryptography algorithm is misconfigured
+            :raises InvalidKeyError: if the key doesn't match the expected key classes
+            """
+            if not self._crypto_key_types:
+                raise ValueError(
+                    "CryptoAlgorithm subclasses must define _crypto_key_types."
+                )
+
+            if not isinstance(key, self._crypto_key_types):
+                valid_classes = ", ".join(
+                    cls.__name__ for cls in self._crypto_key_types
+                )
+                actual_class = key.__class__.__name__
+                self_class = self.__class__.__name__
+                raise InvalidKeyError(
+                    f"Expected one of {valid_classes}, got: {actual_class}. Invalid Key type for {self_class}"
+                )
+            return key
+
+    # pyjwt-964: we use these both for type checking below, as well as for validating the key passed in.
+    # in Py >= 3.10, we can replace this with the Union types.
+    ALLOWED_RSA_KEY_TYPES = (RSAPrivateKey, RSAPublicKey)
+    ALLOWED_EC_KEY_TYPES = (EllipticCurvePrivateKey, EllipticCurvePublicKey)
+    ALLOWED_OKP_KEY_TYPES = (
+        Ed25519PrivateKey,
+        Ed25519PublicKey,
+        Ed448PrivateKey,
+        Ed448PublicKey,
+    )
+    ALLOWED_KEY_TYPES = (
+        ALLOWED_RSA_KEY_TYPES + ALLOWED_EC_KEY_TYPES + ALLOWED_OKP_KEY_TYPES
+    )
+    ALLOWED_PRIVATE_KEY_TYPES = (
+        RSAPrivateKey,
+        EllipticCurvePrivateKey,
+        Ed25519PrivateKey,
+        Ed448PrivateKey,
+    )
+    ALLOWED_PUBLIC_KEY_TYPES = (
+        RSAPublicKey,
+        EllipticCurvePublicKey,
+        Ed25519PublicKey,
+        Ed448PublicKey,
+    )
+
+    class RSAAlgorithm(CryptoAlgorithm["AllowedRSAKeys"]):
         """
         Performs signing and verification operations using
         RSASSA-PKCS-v1_5 and the specified hash function.
@@ -444,19 +516,16 @@ if has_crypto:
             try:
                 if key_bytes.startswith(b"ssh-rsa"):
                     public_key: PublicKeyTypes = load_ssh_public_key(key_bytes)
-                    self.check_crypto_key_type(public_key)
-                    return cast(RSAPublicKey, public_key)
+                    return self.check_crypto_key_type(public_key)
                 else:
                     private_key: PrivateKeyTypes = load_pem_private_key(
                         key_bytes, password=None
                     )
-                    self.check_crypto_key_type(private_key)
-                    return cast(RSAPrivateKey, private_key)
+                    return self.check_crypto_key_type(private_key)
             except ValueError:
                 try:
                     public_key = load_pem_public_key(key_bytes)
-                    self.check_crypto_key_type(public_key)
-                    return cast(RSAPublicKey, public_key)
+                    return self.check_crypto_key_type(public_key)
                 except (ValueError, UnsupportedAlgorithm):
                     raise InvalidKeyError(
                         "Could not parse the provided public key."
@@ -474,32 +543,32 @@ if has_crypto:
         def to_jwk(key_obj: AllowedRSAKeys, as_dict: bool = False) -> JWKDict | str:
             obj: dict[str, Any] | None = None
 
-            if hasattr(key_obj, "private_numbers"):
+            if isinstance(key_obj, RSAPrivateKey):
                 # Private key
-                numbers = key_obj.private_numbers()
+                private_numbers = key_obj.private_numbers()
 
                 obj = {
                     "kty": "RSA",
                     "key_ops": ["sign"],
-                    "n": to_base64url_uint(numbers.public_numbers.n).decode(),
-                    "e": to_base64url_uint(numbers.public_numbers.e).decode(),
-                    "d": to_base64url_uint(numbers.d).decode(),
-                    "p": to_base64url_uint(numbers.p).decode(),
-                    "q": to_base64url_uint(numbers.q).decode(),
-                    "dp": to_base64url_uint(numbers.dmp1).decode(),
-                    "dq": to_base64url_uint(numbers.dmq1).decode(),
-                    "qi": to_base64url_uint(numbers.iqmp).decode(),
+                    "n": to_base64url_uint(private_numbers.public_numbers.n).decode(),
+                    "e": to_base64url_uint(private_numbers.public_numbers.e).decode(),
+                    "d": to_base64url_uint(private_numbers.d).decode(),
+                    "p": to_base64url_uint(private_numbers.p).decode(),
+                    "q": to_base64url_uint(private_numbers.q).decode(),
+                    "dp": to_base64url_uint(private_numbers.dmp1).decode(),
+                    "dq": to_base64url_uint(private_numbers.dmq1).decode(),
+                    "qi": to_base64url_uint(private_numbers.iqmp).decode(),
                 }
 
-            elif hasattr(key_obj, "verify"):
+            elif isinstance(key_obj, RSAPublicKey):
                 # Public key
-                numbers = key_obj.public_numbers()
+                public_numbers = key_obj.public_numbers()
 
                 obj = {
                     "kty": "RSA",
                     "key_ops": ["verify"],
-                    "n": to_base64url_uint(numbers.n).decode(),
-                    "e": to_base64url_uint(numbers.e).decode(),
+                    "n": to_base64url_uint(public_numbers.n).decode(),
+                    "e": to_base64url_uint(public_numbers.e).decode(),
                 }
             else:
                 raise InvalidKeyError("Not a public or private key")
@@ -592,7 +661,7 @@ if has_crypto:
             except InvalidSignature:
                 return False
 
-    class ECAlgorithm(Algorithm):
+    class ECAlgorithm(CryptoAlgorithm["AllowedECKeys"]):
         """
         Performs signing and verification operations using
         ECDSA and the specified hash function
@@ -643,14 +712,12 @@ if has_crypto:
                     public_key = load_pem_public_key(key_bytes)
 
                 # Explicit check the key to prevent confusing errors from cryptography
-                self.check_crypto_key_type(public_key)
-                ec_public_key = cast(EllipticCurvePublicKey, public_key)
+                ec_public_key = self.check_crypto_key_type(public_key)
                 self._validate_curve(ec_public_key)
                 return ec_public_key
             except ValueError:
                 private_key = load_pem_private_key(key_bytes, password=None)
-                self.check_crypto_key_type(private_key)
-                ec_private_key = cast(EllipticCurvePrivateKey, private_key)
+                ec_private_key = self.check_crypto_key_type(private_key)
                 self._validate_curve(ec_private_key)
                 return ec_private_key
 
@@ -743,11 +810,11 @@ if has_crypto:
             if obj.get("kty") != "EC":
                 raise InvalidKeyError("Not an Elliptic curve key") from None
 
-            if "x" not in obj or "y" not in obj:
+            if (obj_x := obj.get("x")) is None or (obj_y := obj.get("y")) is None:
                 raise InvalidKeyError("Not an Elliptic curve key") from None
 
-            x = base64url_decode(obj.get("x"))
-            y = base64url_decode(obj.get("y"))
+            x = base64url_decode(obj_x)
+            y = base64url_decode(obj_y)
 
             curve = obj.get("crv")
             curve_obj: EllipticCurve
@@ -789,10 +856,10 @@ if has_crypto:
                 curve=curve_obj,
             )
 
-            if "d" not in obj:
+            if (obj_d := obj.get("d")) is None:
                 return public_numbers.public_key()
 
-            d = base64url_decode(obj.get("d"))
+            d = base64url_decode(obj_d)
             if len(d) != len(x):
                 raise InvalidKeyError(
                     "D should be {} bytes for curve {}", len(x), curve
@@ -833,7 +900,7 @@ if has_crypto:
             except InvalidSignature:
                 return False
 
-    class OKPAlgorithm(Algorithm):
+    class OKPAlgorithm(CryptoAlgorithm["AllowedOKPKeys"]):
         """
         Performs signing and verification operations using EdDSA
 
@@ -847,8 +914,7 @@ if has_crypto:
 
         def prepare_key(self, key: AllowedOKPKeys | str | bytes) -> AllowedOKPKeys:
             if not isinstance(key, (str, bytes)):
-                self.check_crypto_key_type(key)
-                return key
+                return self.check_crypto_key_type(key)
 
             key_str = key.decode("utf-8") if isinstance(key, bytes) else key
             key_bytes = key.encode("utf-8") if isinstance(key, str) else key
@@ -864,8 +930,7 @@ if has_crypto:
                 raise InvalidKeyError("Not a public or private key")
 
             # Explicit check the key to prevent confusing errors from cryptography
-            self.check_crypto_key_type(loaded_key)
-            return cast("AllowedOKPKeys", loaded_key)
+            return self.check_crypto_key_type(loaded_key)
 
         def sign(
             self, msg: str | bytes, key: Ed25519PrivateKey | Ed448PrivateKey
@@ -909,20 +974,20 @@ if has_crypto:
 
         @overload
         @staticmethod
-        def to_jwk(key: AllowedOKPKeys, as_dict: Literal[True]) -> JWKDict: ...
+        def to_jwk(key_obj: AllowedOKPKeys, as_dict: Literal[True]) -> JWKDict: ...
 
         @overload
         @staticmethod
-        def to_jwk(key: AllowedOKPKeys, as_dict: Literal[False] = False) -> str: ...
+        def to_jwk(key_obj: AllowedOKPKeys, as_dict: Literal[False] = False) -> str: ...
 
         @staticmethod
-        def to_jwk(key: AllowedOKPKeys, as_dict: bool = False) -> JWKDict | str:
-            if isinstance(key, (Ed25519PublicKey, Ed448PublicKey)):
-                x = key.public_bytes(
+        def to_jwk(key_obj: AllowedOKPKeys, as_dict: bool = False) -> JWKDict | str:
+            if isinstance(key_obj, (Ed25519PublicKey, Ed448PublicKey)):
+                x = key_obj.public_bytes(
                     encoding=Encoding.Raw,
                     format=PublicFormat.Raw,
                 )
-                crv = "Ed25519" if isinstance(key, Ed25519PublicKey) else "Ed448"
+                crv = "Ed25519" if isinstance(key_obj, Ed25519PublicKey) else "Ed448"
 
                 obj = {
                     "x": base64url_encode(force_bytes(x)).decode(),
@@ -935,19 +1000,19 @@ if has_crypto:
                 else:
                     return json.dumps(obj)
 
-            if isinstance(key, (Ed25519PrivateKey, Ed448PrivateKey)):
-                d = key.private_bytes(
+            if isinstance(key_obj, (Ed25519PrivateKey, Ed448PrivateKey)):
+                d = key_obj.private_bytes(
                     encoding=Encoding.Raw,
                     format=PrivateFormat.Raw,
                     encryption_algorithm=NoEncryption(),
                 )
 
-                x = key.public_key().public_bytes(
+                x = key_obj.public_key().public_bytes(
                     encoding=Encoding.Raw,
                     format=PublicFormat.Raw,
                 )
 
-                crv = "Ed25519" if isinstance(key, Ed25519PrivateKey) else "Ed448"
+                crv = "Ed25519" if isinstance(key_obj, Ed25519PrivateKey) else "Ed448"
                 obj = {
                     "x": base64url_encode(force_bytes(x)).decode(),
                     "d": base64url_encode(force_bytes(d)).decode(),
@@ -981,16 +1046,16 @@ if has_crypto:
             if curve != "Ed25519" and curve != "Ed448":
                 raise InvalidKeyError(f"Invalid curve: {curve}")
 
-            if "x" not in obj:
+            if (obj_x := obj.get("x")) is None:
                 raise InvalidKeyError('OKP should have "x" parameter')
-            x = base64url_decode(obj.get("x"))
+            x = base64url_decode(obj_x)
 
             try:
-                if "d" not in obj:
+                if (obj_d := obj.get("d")) is None:
                     if curve == "Ed25519":
                         return Ed25519PublicKey.from_public_bytes(x)
                     return Ed448PublicKey.from_public_bytes(x)
-                d = base64url_decode(obj.get("d"))
+                d = base64url_decode(obj_d)
                 if curve == "Ed25519":
                     return Ed25519PrivateKey.from_private_bytes(d)
                 return Ed448PrivateKey.from_private_bytes(d)
