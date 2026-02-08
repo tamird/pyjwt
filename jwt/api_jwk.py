@@ -5,7 +5,7 @@ import time
 from collections.abc import Iterator
 from typing import Any
 
-from .algorithms import get_default_algorithms, has_crypto, requires_cryptography
+from .algorithms import get_default_algorithms, _has_crypto, _requires_cryptography
 from .exceptions import (
     InvalidKeyError,
     MissingCryptographyError,
@@ -66,19 +66,19 @@ class PyJWK:
             else:
                 raise InvalidKeyError(f"Unsupported kty: {kty}")
 
-        if not has_crypto and algorithm in requires_cryptography:
+        if not _has_crypto and algorithm in _requires_cryptography:
             raise MissingCryptographyError(
                 f"{algorithm} requires 'cryptography' to be installed."
             )
 
         self.algorithm_name = algorithm
 
-        if algorithm in self._algorithms:
-            self.Algorithm = self._algorithms[algorithm]
+        if (alg := self._algorithms.get(algorithm)) is not None:
+            self.Algorithm = alg
         else:
             raise PyJWKError(f"Unable to find an algorithm for key: {self._jwk_data}")
 
-        self.key = self.Algorithm.from_jwk(self._jwk_data)
+        self.key: Any = self.Algorithm.from_jwk(self._jwk_data)
 
     @staticmethod
     def from_dict(obj: JWKDict, algorithm: str | None = None) -> PyJWK:
@@ -133,7 +133,7 @@ class PyJWK:
 
 class PyJWKSet:
     def __init__(self, keys: list[JWKDict]) -> None:
-        self.keys = []
+        self.keys: list[PyJWK] = []
 
         if not keys:
             raise PyJWKSetError("The JWK Set did not contain any keys")
@@ -178,7 +178,7 @@ class PyJWKSet:
 class PyJWTSetWithTimestamp:
     def __init__(self, jwk_set: PyJWKSet):
         self.jwk_set = jwk_set
-        self.timestamp = time.monotonic()
+        self.timestamp: float = time.monotonic()
 
     def get_jwk_set(self) -> PyJWKSet:
         return self.jwk_set

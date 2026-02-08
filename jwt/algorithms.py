@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     ClassVar,
     Generic,
     Literal,
@@ -31,182 +32,7 @@ from .utils import (
     to_base64url_uint,
 )
 
-if TYPE_CHECKING or bool(os.getenv("SPHINX_BUILD", "")):
-    import sys
-
-    if sys.version_info >= (3, 10):
-        from typing import TypeAlias
-    else:
-        # Python 3.9 and lower
-        from typing_extensions import TypeAlias
-
-    from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm  # type: ignore[import-not-found,unused-ignore]
-    from cryptography.hazmat.backends import default_backend  # type: ignore[import-not-found,unused-ignore]
-    from cryptography.hazmat.primitives import hashes  # type: ignore[import-not-found,unused-ignore]
-    from cryptography.hazmat.primitives.asymmetric import padding  # type: ignore[import-not-found,unused-ignore]
-    from cryptography.hazmat.primitives.asymmetric.ec import (  # type: ignore[import-not-found,unused-ignore]
-        ECDSA,
-        SECP256K1,
-        SECP256R1,
-        SECP384R1,
-        SECP521R1,
-        EllipticCurve,
-        EllipticCurvePrivateKey,
-        EllipticCurvePrivateNumbers,
-        EllipticCurvePublicKey,
-        EllipticCurvePublicNumbers,
-    )
-    from cryptography.hazmat.primitives.asymmetric.ed448 import (  # type: ignore[import-not-found,unused-ignore]
-        Ed448PrivateKey,
-        Ed448PublicKey,
-    )
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import (  # type: ignore[import-not-found,unused-ignore]
-        Ed25519PrivateKey,
-        Ed25519PublicKey,
-    )
-    from cryptography.hazmat.primitives.asymmetric.rsa import (  # type: ignore[import-not-found,unused-ignore]
-        RSAPrivateKey,
-        RSAPrivateNumbers,
-        RSAPublicKey,
-        RSAPublicNumbers,
-        rsa_crt_dmp1,
-        rsa_crt_dmq1,
-        rsa_crt_iqmp,
-        rsa_recover_prime_factors,
-    )
-    from cryptography.hazmat.primitives.asymmetric.utils import (  # type: ignore[import-not-found,unused-ignore]
-        decode_dss_signature,
-        encode_dss_signature,
-    )
-    from cryptography.hazmat.primitives.asymmetric.types import (  # type: ignore[import-not-found,unused-ignore]
-        PrivateKeyTypes,
-        PublicKeyTypes,
-    )
-    from cryptography.hazmat.primitives.serialization import (  # type: ignore[import-not-found,unused-ignore]
-        Encoding,
-        NoEncryption,
-        PrivateFormat,
-        PublicFormat,
-        load_pem_private_key,
-        load_pem_public_key,
-        load_ssh_public_key,
-    )
-
-    AllowedRSAKeys: TypeAlias = Union[RSAPrivateKey, RSAPublicKey]
-    AllowedECKeys: TypeAlias = Union[EllipticCurvePrivateKey, EllipticCurvePublicKey]
-    AllowedOKPKeys: TypeAlias = Union[
-        Ed25519PrivateKey, Ed25519PublicKey, Ed448PrivateKey, Ed448PublicKey
-    ]
-    AllowedKeys: TypeAlias = Union[AllowedRSAKeys, AllowedECKeys, AllowedOKPKeys]
-    AllowedPrivateKeys: TypeAlias = Union[
-        RSAPrivateKey, EllipticCurvePrivateKey, Ed25519PrivateKey, Ed448PrivateKey
-    ]
-    AllowedPublicKeys: TypeAlias = Union[
-        RSAPublicKey, EllipticCurvePublicKey, Ed25519PublicKey, Ed448PublicKey
-    ]
-
-try:
-    from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm  # type: ignore[import-not-found,unused-ignore]
-    from cryptography.hazmat.backends import default_backend  # type: ignore[import-not-found,unused-ignore]
-    from cryptography.hazmat.primitives import hashes  # type: ignore[import-not-found,unused-ignore]
-    from cryptography.hazmat.primitives.asymmetric import padding  # type: ignore[import-not-found,unused-ignore]
-    from cryptography.hazmat.primitives.asymmetric.ec import (  # type: ignore[import-not-found,unused-ignore]
-        ECDSA,
-        SECP256K1,
-        SECP256R1,
-        SECP384R1,
-        SECP521R1,
-        EllipticCurve,
-        EllipticCurvePrivateKey,
-        EllipticCurvePrivateNumbers,
-        EllipticCurvePublicKey,
-        EllipticCurvePublicNumbers,
-    )
-    from cryptography.hazmat.primitives.asymmetric.ed448 import (  # type: ignore[import-not-found,unused-ignore]
-        Ed448PrivateKey,
-        Ed448PublicKey,
-    )
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import (  # type: ignore[import-not-found,unused-ignore]
-        Ed25519PrivateKey,
-        Ed25519PublicKey,
-    )
-    from cryptography.hazmat.primitives.asymmetric.rsa import (  # type: ignore[import-not-found,unused-ignore]
-        RSAPrivateKey,
-        RSAPrivateNumbers,
-        RSAPublicKey,
-        RSAPublicNumbers,
-        rsa_crt_dmp1,
-        rsa_crt_dmq1,
-        rsa_crt_iqmp,
-        rsa_recover_prime_factors,
-    )
-    from cryptography.hazmat.primitives.asymmetric.utils import (  # type: ignore[import-not-found,unused-ignore]
-        decode_dss_signature,
-        encode_dss_signature,
-    )
-    from cryptography.hazmat.primitives.serialization import (  # type: ignore[import-not-found,unused-ignore]
-        Encoding,
-        NoEncryption,
-        PrivateFormat,
-        PublicFormat,
-        load_pem_private_key,
-        load_pem_public_key,
-        load_ssh_public_key,
-    )
-
-    has_crypto = True
-except ModuleNotFoundError:
-    has_crypto = False
-
-
-requires_cryptography = {
-    "RS256",
-    "RS384",
-    "RS512",
-    "ES256",
-    "ES256K",
-    "ES384",
-    "ES521",
-    "ES512",
-    "PS256",
-    "PS384",
-    "PS512",
-    "EdDSA",
-}
-
-
-def get_default_algorithms() -> dict[str, Algorithm]:
-    """
-    Returns the algorithms that are implemented by the library.
-    """
-    default_algorithms: dict[str, Algorithm] = {
-        "none": NoneAlgorithm(),
-        "HS256": HMACAlgorithm(HMACAlgorithm.SHA256),
-        "HS384": HMACAlgorithm(HMACAlgorithm.SHA384),
-        "HS512": HMACAlgorithm(HMACAlgorithm.SHA512),
-    }
-
-    if has_crypto:
-        default_algorithms.update(
-            {
-                "RS256": RSAAlgorithm(RSAAlgorithm.SHA256),
-                "RS384": RSAAlgorithm(RSAAlgorithm.SHA384),
-                "RS512": RSAAlgorithm(RSAAlgorithm.SHA512),
-                "ES256": ECAlgorithm(ECAlgorithm.SHA256, SECP256R1),
-                "ES256K": ECAlgorithm(ECAlgorithm.SHA256, SECP256K1),
-                "ES384": ECAlgorithm(ECAlgorithm.SHA384, SECP384R1),
-                "ES521": ECAlgorithm(ECAlgorithm.SHA512, SECP521R1),
-                "ES512": ECAlgorithm(
-                    ECAlgorithm.SHA512, SECP521R1
-                ),  # Backward compat for #219 fix
-                "PS256": RSAPSSAlgorithm(RSAPSSAlgorithm.SHA256),
-                "PS384": RSAPSSAlgorithm(RSAPSSAlgorithm.SHA384),
-                "PS512": RSAPSSAlgorithm(RSAPSSAlgorithm.SHA512),
-                "EdDSA": OKPAlgorithm(),
-            }
-        )
-
-    return default_algorithms
+_hashes: tuple[type, type, Callable[[], Any]] | None = None
 
 
 class Algorithm(ABC):
@@ -225,16 +51,14 @@ class Algorithm(ABC):
         if hash_alg is None:
             raise NotImplementedError
 
-        if (
-            has_crypto
-            and isinstance(hash_alg, type)
-            and issubclass(hash_alg, hashes.HashAlgorithm)
-        ):
-            digest = hashes.Hash(hash_alg(), backend=default_backend())
-            digest.update(bytestr)
-            return bytes(digest.finalize())
-        else:
-            return bytes(hash_alg(bytestr).digest())
+        if _hashes is not None:
+            algorithm, hash, backend = _hashes
+            if issubclass(hash_alg, algorithm):
+                digest = hash(hash_alg(), backend=backend())
+                digest.update(bytestr)
+                return bytes(digest.finalize())
+
+        return bytes(hash_alg(bytestr).digest())
 
     @abstractmethod
     def prepare_key(self, key: Any) -> Any:
@@ -400,7 +224,93 @@ class HMACAlgorithm(Algorithm):
         return hmac.compare_digest(sig, self.sign(msg, key))
 
 
-if has_crypto:
+_default_algorithms: dict[str, Algorithm] = {
+    "none": NoneAlgorithm(),
+    "HS256": HMACAlgorithm(HMACAlgorithm.SHA256),
+    "HS384": HMACAlgorithm(HMACAlgorithm.SHA384),
+    "HS512": HMACAlgorithm(HMACAlgorithm.SHA512),
+}
+
+
+try:
+    from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm  # type: ignore[import-not-found,unused-ignore]
+    from cryptography.hazmat.backends import default_backend  # type: ignore[import-not-found,unused-ignore]
+    from cryptography.hazmat.primitives import hashes  # type: ignore[import-not-found,unused-ignore]
+    from cryptography.hazmat.primitives.asymmetric import padding  # type: ignore[import-not-found,unused-ignore]
+    from cryptography.hazmat.primitives.asymmetric.ec import (  # type: ignore[import-not-found,unused-ignore]
+        ECDSA,
+        SECP256K1,
+        SECP256R1,
+        SECP384R1,
+        SECP521R1,
+        EllipticCurve,
+        EllipticCurvePrivateKey,
+        EllipticCurvePrivateNumbers,
+        EllipticCurvePublicKey,
+        EllipticCurvePublicNumbers,
+    )
+    from cryptography.hazmat.primitives.asymmetric.ed448 import (  # type: ignore[import-not-found,unused-ignore]
+        Ed448PrivateKey,
+        Ed448PublicKey,
+    )
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import (  # type: ignore[import-not-found,unused-ignore]
+        Ed25519PrivateKey,
+        Ed25519PublicKey,
+    )
+    from cryptography.hazmat.primitives.asymmetric.rsa import (  # type: ignore[import-not-found,unused-ignore]
+        RSAPrivateKey,
+        RSAPrivateNumbers,
+        RSAPublicKey,
+        RSAPublicNumbers,
+        rsa_crt_dmp1,
+        rsa_crt_dmq1,
+        rsa_crt_iqmp,
+        rsa_recover_prime_factors,
+    )
+    from cryptography.hazmat.primitives.asymmetric.types import (  # type: ignore[import-not-found,unused-ignore]
+        PrivateKeyTypes,
+        PublicKeyTypes,
+    )
+    from cryptography.hazmat.primitives.asymmetric.utils import (  # type: ignore[import-not-found,unused-ignore]
+        decode_dss_signature,
+        encode_dss_signature,
+    )
+    from cryptography.hazmat.primitives.serialization import (  # type: ignore[import-not-found,unused-ignore]
+        Encoding,
+        NoEncryption,
+        PrivateFormat,
+        PublicFormat,
+        load_pem_private_key,
+        load_pem_public_key,
+        load_ssh_public_key,
+    )
+
+    _hashes = (hashes.HashAlgorithm, hashes.Hash, default_backend)
+
+    if TYPE_CHECKING or bool(os.getenv("SPHINX_BUILD", "")):
+        import sys
+
+        if sys.version_info >= (3, 10):
+            from typing import TypeAlias
+        else:
+            # Python 3.9 and lower
+            from typing_extensions import TypeAlias
+
+        AllowedRSAKeys: TypeAlias = Union[RSAPrivateKey, RSAPublicKey]
+        AllowedECKeys: TypeAlias = Union[
+            EllipticCurvePrivateKey, EllipticCurvePublicKey
+        ]
+        AllowedOKPKeys: TypeAlias = Union[
+            Ed25519PrivateKey, Ed25519PublicKey, Ed448PrivateKey, Ed448PublicKey
+        ]
+        AllowedKeys: TypeAlias = Union[AllowedRSAKeys, AllowedECKeys, AllowedOKPKeys]
+        AllowedPrivateKeys: TypeAlias = Union[
+            RSAPrivateKey, EllipticCurvePrivateKey, Ed25519PrivateKey, Ed448PrivateKey
+        ]
+        AllowedPublicKeys: TypeAlias = Union[
+            RSAPublicKey, EllipticCurvePublicKey, Ed25519PublicKey, Ed448PublicKey
+        ]
+
     CryptoKeyT = TypeVar("CryptoKeyT", bound="AllowedKeys")
 
     def der_to_raw_signature(der_sig: bytes, curve: EllipticCurve) -> bytes:
@@ -1061,3 +971,50 @@ if has_crypto:
                 return Ed448PrivateKey.from_private_bytes(d)
             except ValueError as err:
                 raise InvalidKeyError("Invalid key parameter") from err
+
+    _default_algorithms.update(
+        {
+            "RS256": RSAAlgorithm(RSAAlgorithm.SHA256),
+            "RS384": RSAAlgorithm(RSAAlgorithm.SHA384),
+            "RS512": RSAAlgorithm(RSAAlgorithm.SHA512),
+            "ES256": ECAlgorithm(ECAlgorithm.SHA256, SECP256R1),
+            "ES256K": ECAlgorithm(ECAlgorithm.SHA256, SECP256K1),
+            "ES384": ECAlgorithm(ECAlgorithm.SHA384, SECP384R1),
+            "ES521": ECAlgorithm(ECAlgorithm.SHA512, SECP521R1),
+            "ES512": ECAlgorithm(
+                ECAlgorithm.SHA512, SECP521R1
+            ),  # Backward compat for #219 fix
+            "PS256": RSAPSSAlgorithm(RSAPSSAlgorithm.SHA256),
+            "PS384": RSAPSSAlgorithm(RSAPSSAlgorithm.SHA384),
+            "PS512": RSAPSSAlgorithm(RSAPSSAlgorithm.SHA512),
+            "EdDSA": OKPAlgorithm(),
+        }
+    )
+
+    _has_crypto = True
+
+except ModuleNotFoundError:
+    _has_crypto = False
+
+
+_requires_cryptography = {
+    "RS256",
+    "RS384",
+    "RS512",
+    "ES256",
+    "ES256K",
+    "ES384",
+    "ES521",
+    "ES512",
+    "PS256",
+    "PS384",
+    "PS512",
+    "EdDSA",
+}
+
+
+def get_default_algorithms() -> dict[str, Algorithm]:
+    """
+    Returns the algorithms that are implemented by the library.
+    """
+    return _default_algorithms.copy()

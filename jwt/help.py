@@ -8,9 +8,9 @@ from . import __version__ as pyjwt_version
 try:
     import cryptography  # type: ignore[import-not-found,unused-ignore]
 
-    cryptography_version = cryptography.__version__
+    _cryptography_version = cryptography.__version__
 except ModuleNotFoundError:
-    cryptography_version = ""
+    _cryptography_version = ""
 
 
 def info() -> dict[str, dict[str, str]]:
@@ -53,7 +53,7 @@ def info() -> dict[str, dict[str, str]]:
             "name": implementation,
             "version": implementation_version,
         },
-        "cryptography": {"version": cryptography_version},
+        "cryptography": {"version": _cryptography_version},
         "pyjwt": {"version": pyjwt_version},
     }
 

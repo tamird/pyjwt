@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING, Any
 from .algorithms import (
     Algorithm,
     get_default_algorithms,
-    has_crypto,
-    requires_cryptography,
+    _has_crypto,
+    _requires_cryptography,
 )
 from .api_jwk import PyJWK
 from .exceptions import (
@@ -109,7 +109,7 @@ class PyJWS:
         try:
             return self._algorithms[alg_name]
         except KeyError as e:
-            if not has_crypto and alg_name in requires_cryptography:
+            if not _has_crypto and alg_name in _requires_cryptography:
                 raise NotImplementedError(
                     f"Algorithm '{alg_name}' could not be found. Do you have cryptography installed?"
                 ) from e
